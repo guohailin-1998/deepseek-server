@@ -162,5 +162,42 @@ def gen_code():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)  
+# 在文件顶部附近添加你自己的 API Key（不要泄露）
+DEEPSEEK_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
+# 新增聊天代理接口
+@app.route('/api/chat', methods=['POST'])
+@jwt_required()
+def chat():
+    username = get_jwt_identity()
+    # 先检查会员状态（非会员禁止使用）
+    conn = get_db()
+    user = conn.execute('SELECT member_expire FROM users WHERE username = ?', (username,)).fetchone()
+    conn.close()
+    if not user or not user['member_expire']:
+        return jsonify({'msg': '未开通会员，请先激活'}), 403
+    try:
+        expire_date = datetime.datetime.strptime(user['member_expire'], '%Y-%m-%d')
+        if expire_date < datetime.datetime.now():
+            return jsonify({'msg': '会员已过期，请续费'}), 403
+    except:
+        return jsonify({'msg': '会员状态异常'}), 403
+
+    data = request.get_json()
+    messages = data.get('messages', [])
+    if not messages:
+        return jsonify({'msg': '缺少消息'}), 400
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=messages,
+            stream=False   # 为简单先非流式，可改为流式
+        )
+        reply = response.choices[0].message.content
+        return jsonify({'reply': reply, 'msg': 'ok'})
+    except Exception as e:
+        return jsonify({'msg': f'请求失败: {str(e)}'}), 500
 
