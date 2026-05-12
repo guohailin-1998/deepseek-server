@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,14 +6,18 @@ import sqlite3
 import datetime
 import uuid
 import os
+import json
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔐 第1处密码：QWEQDCDNAKNHCIANCIKN123121421INIAKNSDCANDN
+# 🔐 第1处密码：JWT 密钥（改成自己的随机字符串）
 app.config["JWT_SECRET_KEY"] = "f8s3j6k1a9d0g4h5l2p7w3e9r5t8y2u"
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
 jwt = JWTManager(app)
+
+# 你自己的 DeepSeek API Key（不要泄露）
+DEEPSEEK_API_KEY = "sk-5d33c45b52ec4b5b9eb689c43156da8b"
 
 DATABASE = 'deepseek_server.db'
 
@@ -149,7 +153,7 @@ def activate_member():
 @app.route('/api/admin/gen_code', methods=['POST'])
 def gen_code():
     data = request.get_json()
-        # 第2处密码：490145692hailin
+    # 第2处密码：管理员密码（改成自己的）
     if data.get('admin_key') != '490145692hailin':
         return jsonify({'msg': '无权限'}), 403
     days = data.get('days', 365)
@@ -160,17 +164,12 @@ def gen_code():
     conn.close()
     return jsonify({'code': code, 'days': days})
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)  
-# 在文件顶部附近添加你自己的 API Key（不要泄露）
-DEEPSEEK_API_KEY = "sk-5d33c45b52ec4b5b9eb689c43156da8b"
-
-# 新增聊天代理接口
+# ---------- 新增流式聊天代理接口 ----------
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
-def chat():
+def chat_stream():
     username = get_jwt_identity()
-    # 先检查会员状态（非会员禁止使用）
+    # 验证会员
     conn = get_db()
     user = conn.execute('SELECT member_expire FROM users WHERE username = ?', (username,)).fetchone()
     conn.close()
@@ -188,16 +187,24 @@ def chat():
     if not messages:
         return jsonify({'msg': '缺少消息'}), 400
 
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages,
-            stream=False   # 为简单先非流式，可改为流式
-        )
-        reply = response.choices[0].message.content
-        return jsonify({'reply': reply, 'msg': 'ok'})
-    except Exception as e:
-        return jsonify({'msg': f'请求失败: {str(e)}'}), 500
+    def generate():
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
+            stream = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                stream=True,
+            )
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
