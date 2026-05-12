@@ -1,3 +1,4 @@
+  
 import tkinter as tk
 from tkinter import scrolledtext, messagebox, simpledialog, filedialog
 import ttkbootstrap as tb
@@ -9,13 +10,13 @@ import requests
 from datetime import datetime
 from openai import OpenAI
 
-# ---------- 配置 ----------
-CONFIG_FILE = "config.json"          # 保存 API Key
-TOKEN_FILE = "token.json"            # 保存 JWT token
-BACKEND_URL = "https://你的后端地址.railway.app"   # 部署后替换成真实地址
+# 🔧 这里改成你的 Render 后端地址
+BACKEND_URL = "https://deepseek-server-bcrf.onrender.com"
+
+CONFIG_FILE = "config.json"
+TOKEN_FILE = "token.json"
 
 class LoginWindow(tb.Toplevel):
-    """登录/注册窗口"""
     def __init__(self, parent):
         super().__init__(parent)
         self.title("登录 / 注册")
@@ -88,11 +89,10 @@ class LoginWindow(tb.Toplevel):
     def on_close(self):
         self.parent.on_login_close()
 
-
 class DeepSeekChatPro:
     def __init__(self, root):
         self.root = root
-        self.root.withdraw()   # 先隐藏主窗口，登录后再显示
+        self.root.withdraw()
 
         self.token = None
         self.username = None
@@ -101,14 +101,12 @@ class DeepSeekChatPro:
         self.api_key = ""
         self.client = None
 
-        # 尝试从本地加载 token
         self.load_token()
         if self.token and self.check_token():
             self.init_ui()
             self.root.deiconify()
             return
 
-        # 打开登录窗口
         self.root.after(100, self.show_login)
 
     def show_login(self):
@@ -311,14 +309,12 @@ class DeepSeekChatPro:
             messagebox.showwarning("提示", "请先设置 API Key")
             return
 
-        # 检查会员
         try:
             resp = requests.get(f"{BACKEND_URL}/api/member/check",
                                 headers={"Authorization": f"Bearer {self.token}"})
             if resp.status_code == 200:
                 data = resp.json()
-                is_member = data.get("is_member", False)
-                if not is_member:
+                if not data.get("is_member"):
                     messagebox.showwarning("提示", "您的会员已过期，请续费激活")
                     return
         except:
@@ -335,7 +331,7 @@ class DeepSeekChatPro:
 
         self.input_field.config(state=DISABLED)
         self.status_var.set("DeepSeek 思考中...")
-        self.display_message("DeepSeek", "", "ai")   # 占位
+        self.display_message("DeepSeek", "", "ai")
 
         thread = threading.Thread(target=self.call_deepseek_api_stream, daemon=True)
         thread.start()
@@ -389,7 +385,6 @@ class DeepSeekChatPro:
 
     def on_close(self):
         self.root.destroy()
-
 
 if __name__ == "__main__":
     root = tb.Window(themename="flatly")
