@@ -163,7 +163,7 @@ def gen_code():
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)  
 # 在文件顶部附近添加你自己的 API Key（不要泄露）
-DEEPSEEK_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+DEEPSEEK_API_KEY = "sk-5d33c45b52ec4b5b9eb689c43156da8b"
 
 # 新增聊天代理接口
 @app.route('/api/chat', methods=['POST'])
