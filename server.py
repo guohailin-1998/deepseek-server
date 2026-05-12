@@ -149,7 +149,7 @@ def activate_member():
 @app.route('/api/admin/gen_code', methods=['POST'])
 def gen_code():
     data = request.get_json()
-    # 🔐 第2处密码：490145692hailin
+        # 第2处密码：490145692hailin
     if data.get('admin_key') != '490145692hailin':
         return jsonify({'msg': '无权限'}), 403
     days = data.get('days', 365)
@@ -162,4 +162,5 @@ def gen_code():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)  
+
 
