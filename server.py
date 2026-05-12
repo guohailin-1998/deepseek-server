@@ -150,7 +150,7 @@ def activate_member():
 def gen_code():
     data = request.get_json()
     # 🔐 第2处密码：490145692hailin
-    if data.get('admin_key') != 'admin123':
+    if data.get('admin_key') != '490145692hailin':
         return jsonify({'msg': '无权限'}), 403
     days = data.get('days', 365)
     code = str(uuid.uuid4()).replace('-', '')[:16].upper()
@@ -162,3 +162,4 @@ def gen_code():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)  
+
