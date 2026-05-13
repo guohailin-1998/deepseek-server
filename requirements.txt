@@ -2,4 +2,4 @@ flask
 flask-cors
 flask-jwt-extended
 werkzeug
-gunicorn
+openai
