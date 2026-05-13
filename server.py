@@ -7,6 +7,7 @@ import datetime
 import uuid
 import os
 import json
+from openai import OpenAI
 
 app = Flask(__name__)
 CORS(app)
@@ -15,7 +16,8 @@ app.config["JWT_SECRET_KEY"] = "f8s3j6k1a9d0g4h5l2p7w3e9r5t8y2u"
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
 jwt = JWTManager(app)
 
-DEEPSEEK_API_KEY = "sk-5d33c45b52ec4b5b9eb689c43156da8b"
+# 你的 OpenAI API Key（支持聊天和图片生成）
+OPENAI_API_KEY = "sk-你的OpenAI-Key"
 
 DATABASE = 'deepseek_server.db'
 
@@ -161,7 +163,7 @@ def gen_code():
     conn.close()
     return jsonify({'code': code, 'days': days})
 
-# ---------- 流式聊天接口 ----------
+# ---------- 聊天接口（使用 OpenAI） ----------
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
 def chat_stream():
@@ -186,10 +188,9 @@ def chat_stream():
 
     def generate():
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
+            client = OpenAI(api_key=OPENAI_API_KEY)
             stream = client.chat.completions.create(
-                model="deepseek-chat",
+                model="gpt-4o",   # 或 gpt-4.1 等
                 messages=messages,
                 stream=True,
             )
@@ -202,6 +203,44 @@ def chat_stream():
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+# ---------- 图片生成接口 ----------
+@app.route('/api/image', methods=['POST'])
+@jwt_required()
+def generate_image():
+    username = get_jwt_identity()
+    # 验证会员（和聊天一样）
+    conn = get_db()
+    user = conn.execute('SELECT member_expire FROM users WHERE username = ?', (username,)).fetchone()
+    conn.close()
+    if not user or not user['member_expire']:
+        return jsonify({'msg': '未开通会员，请先激活'}), 403
+    try:
+        expire_date = datetime.datetime.strptime(user['member_expire'], '%Y-%m-%d')
+        if expire_date < datetime.datetime.now():
+            return jsonify({'msg': '会员已过期，请续费'}), 403
+    except:
+        return jsonify({'msg': '会员状态异常'}), 403
+
+    data = request.get_json()
+    prompt = data.get('prompt', '')
+    size = data.get('size', '1024x1024')
+    if not prompt:
+        return jsonify({'msg': '请输入图片描述'}), 400
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size=size,
+            quality="standard",
+            n=1,
+        )
+        image_url = response.data[0].url
+        return jsonify({'url': image_url})
+    except Exception as e:
+        return jsonify({'msg': f'图片生成失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
