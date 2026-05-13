@@ -164,7 +164,7 @@ def gen_code():
     conn.close()
     return jsonify({'code': code, 'days': days})
 
-# ---------- 新增流式聊天代理接口 ----------
+# ---------- 流式聊天代理接口 ----------
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
 def chat_stream():
