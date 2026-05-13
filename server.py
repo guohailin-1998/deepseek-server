@@ -17,7 +17,7 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
 jwt = JWTManager(app)
 
 # 你的 OpenAI API Key（支持聊天和图片生成）
-OPENAI_API_KEY = "sk-你的OpenAI-Key"
+OPENAI_API_KEY = "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"
 
 DATABASE = 'deepseek_server.db'
 
