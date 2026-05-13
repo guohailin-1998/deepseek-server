@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,6 +6,7 @@ import sqlite3
 import datetime
 import uuid
 import os
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -160,11 +161,12 @@ def gen_code():
     conn.close()
     return jsonify({'code': code, 'days': days})
 
-# ---------- 非流式聊天接口 ----------
+# ---------- 流式聊天接口 ----------
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
-def chat():
+def chat_stream():
     username = get_jwt_identity()
+    # 验证会员
     conn = get_db()
     user = conn.execute('SELECT member_expire FROM users WHERE username = ?', (username,)).fetchone()
     conn.close()
@@ -182,17 +184,24 @@ def chat():
     if not messages:
         return jsonify({'msg': '缺少消息'}), 400
 
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=messages
-        )
-        reply = response.choices[0].message.content
-        return jsonify({'reply': reply})
-    except Exception as e:
-        return jsonify({'msg': f'请求失败: {str(e)}'}), 500
+    def generate():
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
+            stream = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                stream=True,
+            )
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    yield f"data: {json.dumps({'content': content}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
