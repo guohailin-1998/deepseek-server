@@ -7,6 +7,7 @@ import datetime
 import uuid
 import os
 import json
+from openai import OpenAI
 
 app = Flask(__name__)
 CORS(app)
@@ -15,7 +16,6 @@ app.config["JWT_SECRET_KEY"] = "f8s3j6k1a9d0g4h5l2p7w3e9r5t8y2u"
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
 jwt = JWTManager(app)
 
-# 你的 DeepSeek API Key（务必确认正确）
 DEEPSEEK_API_KEY = "sk-5d33c45b52ec4b5b9eb689c43156da8b"
 
 DATABASE = 'deepseek_server.db'
@@ -162,7 +162,7 @@ def gen_code():
     conn.close()
     return jsonify({'code': code, 'days': days})
 
-# ---------- 流式聊天（DeepSeek） ----------
+# ---------- 流式聊天接口 ----------
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
 def chat_stream():
@@ -186,7 +186,6 @@ def chat_stream():
 
     def generate():
         try:
-            from openai import OpenAI
             client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1")
             stream = client.chat.completions.create(
                 model="deepseek-chat",
